@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AltStack  Quiz</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0 620px;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            font-size: 60px;
+            font-weight: bolder;
+        }
+        .question-container {
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .options-container {
+            margin-top: 10px;
+        }
+        .btn {
+            display: block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .btn-clicked {
+            background-color: green;
+            color: white;
+        }
+        .btn-wrong {
+            background-color: red;
+            color: white;
+        }
+        #score-section {
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 40px;
+            font-family: monospace;
+        }
+        #submitBtn {
+            background-color: purple;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>AltStack Node.js Quiz</h1>
+    <div id="score-section"></div>
+    <div id="questions-container"></div>
+    <button id="submitBtn" class="btn" onclick="submitAnswers()">
+        Submit Answers
+    </button>
+
+    <script>
+        let allQuestionsAnswered = false;
+
+        async function loadQuestions() {
+            try {
+                const response = await fetch("http://localhost:3000/questions");
+                const questionsData = await response.json();
+
+                const questionsContainer = document.getElementById("questions-container");
+
+                questionsData.forEach((questionData) => {
+                    const questionElement = document.createElement("div");
+                    questionElement.classList.add("question-container");
+                    questionElement.innerHTML = `
+                        <div>${questionData.question}</div>
+                        <div class="options-container" id="options-${questionData.question}"></div>
+                    `;
+                    questionsContainer.appendChild(questionElement);
+
+                    const optionsContainer = document.getElementById(`options-${questionData.question}`);
+                    questionData.options.forEach((option) => {
+                        const optionButton = document.createElement("button");
+                        optionButton.textContent = option;
+                        optionButton.classList.add("btn");
+                        optionButton.dataset.question = questionData.question;
+                        optionButton.onclick = () => selectAnswer(optionButton);
+                        optionsContainer.appendChild(optionButton);
+                    });
+                });
+
+                allQuestionsAnswered = false;
+                toggleSubmitButton();
+            } catch (error) {
+                console.error("Error loading questions:", error);
+            }
+        }
+
+        async function submitAnswers() {
+            if (!allQuestionsAnswered) {
+                alert("Please answer all questions before submitting.");
+                return;
+            }
+
+            const answers = [];
+
+            const selectedOptions = document.querySelectorAll(".btn-clicked");
+            selectedOptions.forEach((selectedOption) => {
+                answers.push({
+                    question: selectedOption.dataset.question,
+                    answer: selectedOption.textContent,
+                });
+            });
+
+            try {
+                const response = await fetch("http://localhost:3000/submit", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({ answers }),
+                });
+
+                const result = await response.json();
+
+                let scoreText = `Your score: ${result.score}/${selectedOptions.length}`;
+                document.getElementById("score-section").innerText = scoreText;
+
+                result.feedback.forEach((feedback) => {
+                    const optionButtons = document.querySelectorAll(
+                        `.options-container[id="options-${feedback.question}"] button`
+                    );
+                    if (feedback.correct) {
+                        optionButtons.forEach((button) => {
+                            if (button.innerHTML === feedback.correctAnswer) {
+                                button.classList.add("btn-clicked");
+                            }
+                        });
+                    }
+                    if (!feedback.correct) {
+                        optionButtons.forEach((button) => {
+                            if (button.innerHTML === feedback.correctAnswer) {
+                                button.classList.add("btn-clicked");
+                            }
+                            if (button.innerHTML === feedback.wrongAnswer) {
+                                button.classList.add("btn-wrong");
+                            }
+                        });
+                    }
+                });
+
+            } catch (error) {
+                console.error("Error submitting answers:", error);
+            }
+        }
+
+        function selectAnswer(button) {
+            const question = button.dataset.question;
+            const selectedOptions = document.querySelectorAll(
+                `.btn-clicked[data-question="${question}"]`
+            );
+            selectedOptions.forEach((selectedOption) => {
+                selectedOption.classList.remove("btn-clicked");
+            });
+
+            button.classList.add("btn-clicked");
+            checkAllQuestionsAnswered();
+        }
+
+        function checkAllQuestionsAnswered() {
+            const questionContainers = document.querySelectorAll(
+                ".question-container"
+            );
+            allQuestionsAnswered = true;
+            questionContainers?.forEach((questionContainer) => {
+                const question =
+                    questionContainer.querySelector("div:first-child").textContent;
+                const selectedOption =
+                    questionContainer.querySelector(".btn-clicked");
+                if (!selectedOption) {
+                    allQuestionsAnswered = false;
+                }
+            });
+
+            toggleSubmitButton();
+        }
+
+        function toggleSubmitButton() {
+            const submitButton = document.getElementById("submitBtn");
+            if (allQuestionsAnswered) {
+                submitButton.removeAttribute("disabled");
+            } else {
+                submitButton.setAttribute("disabled", "disabled");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", loadQuestions);
+    </script>
+</body>
+</html>
